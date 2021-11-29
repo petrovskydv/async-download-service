@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import os.path
 
 import aiofiles
 from aiohttp import web
@@ -8,7 +9,27 @@ INTERVAL_SECS = 1
 
 
 async def archivate(request):
-    raise NotImplementedError
+    response = web.StreamResponse()
+    response.headers['Content-Disposition'] = 'attachment; filename="arch.zip"'
+    await response.prepare(request)
+    archive_hash = request.match_info.get('archive_hash')
+    print(f'{archive_hash=}')
+
+    directory_path = os.path.join('test_photos', archive_hash)
+    print(f'{directory_path=}')
+
+    proc = await asyncio.create_subprocess_exec(
+        "zip", "-r", "-", directory_path,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    while not proc.stdout.at_eof():
+        data = await proc.stdout.read(512 * 1024)
+        print('read chunk')
+        await response.write(data)
+
+    return response
 
 
 async def uptime_handler(request):
@@ -41,7 +62,7 @@ if __name__ == '__main__':
     app = web.Application()
     app.add_routes([
         web.get('/', handle_index_page),
-        web.get('/archive/7kna/', uptime_handler),
+        # web.get('/archive/7kna/', uptime_handler),
         web.get('/archive/{archive_hash}/', archivate),
     ])
     web.run_app(app)
