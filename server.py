@@ -39,6 +39,7 @@ async def archivate(request):
     finally:
         try:
             zip_process.kill()
+            await zip_process.communicate()
             logger.debug('zip_process was killed')
         except ProcessLookupError:
             logger.debug('zip_process not find')
