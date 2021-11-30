@@ -7,16 +7,13 @@ from asyncio import CancelledError
 import aiofiles
 from aiohttp import web
 
-INTERVAL_SECS = 1
-DELAY = 0
-PHOTO_PATH = ''
-
 logger = logging.getLogger('marathon-bot')
 
 
-async def archivate(request):
+async def archivate(request: web.Request):
+    app = request.app
     archive_hash = request.match_info['archive_hash']
-    directory_path = os.path.join(PHOTO_PATH, archive_hash)
+    directory_path = os.path.join(app['photo_path'], archive_hash)
     if not os.path.exists(directory_path):
         raise web.HTTPNotFound(reason='Архив не существует или был удален')
 
@@ -33,7 +30,7 @@ async def archivate(request):
             data = await zip_process.stdout.read(512 * 1024)
             logger.debug('Sending archive chunk ...')
             await response.write(data)
-            await asyncio.sleep(DELAY)
+            await asyncio.sleep(app['delay'])
     except (CancelledError, BaseException):
         logger.debug('Download was interrupted')
         raise
@@ -65,20 +62,20 @@ def main():
     parser.add_argument('-p', '--path', default=os.getenv('FILE_STORAGE_PATH', 'test_photos'),
                         help='path to catalog with photos')
 
-    global DELAY, PHOTO_PATH
     args = parser.parse_args()
-    DELAY = args.delay
-    PHOTO_PATH = args.path
 
     logging.basicConfig(
         level=args.loglevel,
         format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
     )
+
     app = web.Application()
     app.add_routes([
         web.get('/', handle_index_page),
         web.get('/archive/{archive_hash}/', archivate),
     ])
+    app['delay'] = args.delay
+    app['photo_path'] = args.path
     web.run_app(app)
 
 
