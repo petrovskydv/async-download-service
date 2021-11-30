@@ -10,14 +10,11 @@ INTERVAL_SECS = 1
 
 async def archivate(request):
     response = web.StreamResponse()
-    response.headers['Content-Disposition'] = 'attachment; filename="arch.zip"'
-    await response.prepare(request)
     archive_hash = request.match_info.get('archive_hash')
-    print(f'{archive_hash=}')
+    response.headers['Content-Disposition'] = f'attachment; filename="{archive_hash}.zip"'
+    await response.prepare(request)
 
     directory_path = os.path.join('test_photos', archive_hash)
-    print(f'{directory_path=}')
-
     proc = await asyncio.create_subprocess_exec(
         "zip", "-r", "-", directory_path,
         stdout=asyncio.subprocess.PIPE,
@@ -26,7 +23,6 @@ async def archivate(request):
 
     while not proc.stdout.at_eof():
         data = await proc.stdout.read(512 * 1024)
-        print('read chunk')
         await response.write(data)
 
     return response
