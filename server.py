@@ -1,29 +1,46 @@
 import asyncio
 import datetime
+import logging
 import os.path
+from asyncio import CancelledError
 
 import aiofiles
+import aiohttp.web
 from aiohttp import web
 
 INTERVAL_SECS = 1
 
+logger = logging.getLogger('marathon-bot')
+
 
 async def archivate(request):
-    response = web.StreamResponse()
     archive_hash = request.match_info.get('archive_hash')
+    directory_path = os.path.join('test_photos', archive_hash)
+    if not os.path.exists(directory_path):
+        raise aiohttp.web.HTTPNotFound(reason='Архив не существует или был удален')
+
+    response = web.StreamResponse()
     response.headers['Content-Disposition'] = f'attachment; filename="{archive_hash}.zip"'
     await response.prepare(request)
-
-    directory_path = os.path.join('test_photos', archive_hash)
-    proc = await asyncio.create_subprocess_exec(
+    zip_process = await asyncio.create_subprocess_exec(
         "zip", "-r", "-", directory_path,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-
-    while not proc.stdout.at_eof():
-        data = await proc.stdout.read(512 * 1024)
-        await response.write(data)
+    try:
+        while not zip_process.stdout.at_eof():
+            data = await zip_process.stdout.read(512 * 1024)
+            logger.debug('Sending archive chunk ...')
+            await response.write(data)
+            await asyncio.sleep(1)
+    except CancelledError:
+        logger.debug('Download was interrupted')
+    finally:
+        try:
+            zip_process.kill()
+            logger.debug('zip_process was killed')
+        except ProcessLookupError:
+            logger.debug('zip_process not find')
 
     return response
 
@@ -55,6 +72,10 @@ async def handle_index_page(request):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level='DEBUG',
+        format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+    )
     app = web.Application()
     app.add_routes([
         web.get('/', handle_index_page),
