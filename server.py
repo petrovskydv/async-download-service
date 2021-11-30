@@ -33,8 +33,9 @@ async def archivate(request):
             logger.debug('Sending archive chunk ...')
             await response.write(data)
             await asyncio.sleep(1)
-    except CancelledError:
+    except (CancelledError, BaseException):
         logger.debug('Download was interrupted')
+        raise
     finally:
         try:
             zip_process.kill()
