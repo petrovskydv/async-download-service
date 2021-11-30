@@ -16,7 +16,7 @@ logger = logging.getLogger('marathon-bot')
 
 
 async def archivate(request):
-    archive_hash = request.match_info.get('archive_hash')
+    archive_hash = request.match_info['archive_hash']
     directory_path = os.path.join(PHOTO_PATH, archive_hash)
     if not os.path.exists(directory_path):
         raise web.HTTPNotFound(reason='Архив не существует или был удален')
